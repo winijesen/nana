@@ -1,7 +1,12 @@
 FROM whyour/qinglong:latest
 
-# 安装 code-server
-RUN curl -fsSL https://code-server.dev/install.sh | sh
+# 安装必要工具
+RUN apt update && apt install -y curl wget gnupg ca-certificates
+
+# 安装 code-server（使用 .deb 包，不用 install.sh）
+RUN wget https://github.com/coder/code-server/releases/download/v4.89.1/code-server_4.89.1_amd64.deb \
+    && dpkg -i code-server_4.89.1_amd64.deb || apt --fix-broken -y install \
+    && rm code-server_4.89.1_amd64.deb
 
 # 安装 nginx
 RUN apt update && apt install -y nginx
