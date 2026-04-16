@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 dir_shell=/ql/shell
 . $dir_shell/share.sh
@@ -50,8 +50,10 @@ dir_root=/ql && source /ql/shell/api.sh
 init_auth_info() {
   local body="$1"
   local tip="$2"
-  local currentTimeStamp=$(date +%s)
-  local api=$(
+  local currentTimeStamp
+  currentTimeStamp=$(date +%s)
+  local api
+  api=$(
     curl -s --noproxy "*" "http://0.0.0.0:5600/api/user/init?t=$currentTimeStamp" \
       -X 'PUT' \
       -H "Accept: application/json" \
