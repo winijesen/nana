@@ -1,115 +1,478 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-dir_shell=/ql/shell
-. $dir_shell/share.sh
-. $dir_shell/env.sh
+echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN 🔥🔥🔥"
 
-echo -e "======================写入rclone配置========================\n"
-mkdir -p ~/.config/rclone
-echo "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
 
-echo -e "======================1. 检测配置文件========================\n"
-import_config "$@"
-make_dir /etc/nginx/conf.d
-make_dir /run/nginx
-init_nginx
-fix_config
+set -e
 
-pm2 l &>/dev/null
 
-echo -e "======================2. 安装依赖========================\n"
-patch_version
+export PATH="$HOME/bin:$PATH"
 
-echo -e "======================3. 启动nginx========================\n"
-nginx -s reload 2>/dev/null || nginx -c /etc/nginx/nginx.conf
-echo -e "nginx启动成功...\n"
 
-echo -e "======================4. 启动pm2服务========================\n"
-reload_update
-reload_pm2
+QL_DIR=${QL_DIR:-/ql}
+dir_shell=${QL_DIR}/shell
 
-if [[ $AutoStartBot == true ]]; then
-  echo -e "======================5. 启动bot========================\n"
-  nohup ql bot >$dir_log/bot.log 2>&1 &
-  echo -e "bot后台启动中...\n"
+
+if [ -f "$dir_shell/share.sh" ]; then
+    . "$dir_shell/share.sh"
+else
+    echo "⚠️ 未找到 share.sh"
 fi
 
-if [[ $EnableExtraShell == true ]]; then
-  echo -e "====================6. 执行自定义脚本========================\n"
-  nohup ql extra >$dir_log/extra.log 2>&1 &
-  echo -e "自定义脚本后台执行中...\n"
-fi
 
-echo -e "############################################################\n"
-echo -e "容器启动成功..."
-echo -e "############################################################\n"
 
-echo -e "##########写入登陆信息############"
-dir_root=/ql && source /ql/shell/api.sh 
+################################################
+# HOME 兼容
+################################################
 
-init_auth_info() {
-  local body="$1"
-  local tip="$2"
-  local currentTimeStamp
-  currentTimeStamp=$(date +%s)
-  local api
-  api=$(
-    curl -s --noproxy "*" "http://0.0.0.0:5600/api/user/init?t=$currentTimeStamp" \
-      -X 'PUT' \
-      -H "Accept: application/json" \
-      -H "User-Agent: Mozilla/5.0" \
-      -H "Content-Type: application/json;charset=UTF-8" \
-      --data-raw "{$body}"
-  )
-  code=$(echo "$api" | jq -r .code)
-  message=$(echo "$api" | jq -r .message)
-  if [[ $code == 200 ]]; then
-    echo -e "${tip}成功🎉"
-  else
-    echo -e "${tip}失败(${message})"
-  fi
-}
+USER_HOME=${HOME:-/home/coder}
 
-init_auth_info "\"username\": \"$ADMIN_USERNAME\", \"password\": \"$ADMIN_PASSWORD\"" "Change Password"
+echo "HOME=$USER_HOME"
 
-echo -e "##########同步备份（rclone）############"
+
+
+################################################
+# rclone 配置
+################################################
+
+echo "======================写入 rclone 配置========================"
+
 
 if [ -n "$RCLONE_CONF" ]; then
-  REMOTE_FOLDER="huggingface:/qinglong"
 
-  OUTPUT=$(rclone ls "$REMOTE_FOLDER" 2>&1)
-  EXIT_CODE=$?
+    mkdir -p "$USER_HOME/.config/rclone"
 
-  if [ $EXIT_CODE -eq 0 ]; then
-    if [ -z "$OUTPUT" ]; then
-      echo "初次安装（远程为空）"
-    else
-      mkdir -p /ql/.tmp/data
-      if rclone sync "$REMOTE_FOLDER" /ql/.tmp/data; then
-        echo -e "🎉同步成功🎉"
-        real_time=true ql reload data
-      else
-        echo -e "❌同步失败，请检查 rclone 配置或网络"
-      fi
-    fi
-  elif [[ "$OUTPUT" == *"directory not found"* ]]; then
-    echo "错误：远程文件夹不存在"
-  else
-    echo "错误：$OUTPUT"
-  fi
+    echo "$RCLONE_CONF" \
+    > "$USER_HOME/.config/rclone/rclone.conf"
+
+
+    chmod 600 "$USER_HOME/.config/rclone/rclone.conf"
+
+
+    echo "✔ rclone 配置完成"
+
 else
-  echo "没有检测到 Rclone 配置信息"
+
+    echo "没有检测到 RCLONE_CONF"
+
 fi
+
+
+
+################################################
+# 环境加载
+################################################
+
+export_ql_envs()
+{
+    export BACK_PORT="${ql_port}"
+    export GRPC_PORT="${ql_grpc_port}"
+}
+
+
+
+log_with_style()
+{
+    local level="$1"
+    local message="$2"
+
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
+    printf "\n[%s] [%7s] %s\n" \
+    "$timestamp" \
+    "$level" \
+    "$message"
+}
+
+
+
+log_with_style INFO "🚀 加载青龙环境"
+
+
+if [ -f "$dir_shell/env.sh" ]; then
+
+    load_ql_envs
+
+    export_ql_envs
+
+    . "$dir_shell/env.sh"
+
+    import_config "$@"
+
+    fix_config
+
+fi
+
+
+
+################################################
+# Render PORT
+################################################
+
+echo "Render PORT=$PORT"
+
+
+if [ -z "$PORT" ]; then
+
+    echo "⚠️ PORT为空"
+
+else
+
+    echo "✔ PORT=$PORT"
+
+fi
+
+
+
+################################################
+# 修改青龙端口
+################################################
+
+
+if [ -f "$QL_DIR/.env" ] && [ -n "$PORT" ]; then
+
+
+    sed -i \
+    "s/^PORT=.*/PORT=$PORT/" \
+    "$QL_DIR/.env"
+
+
+    echo "✔ 青龙 PORT 修改完成"
+
+fi
+
+
+
+################################################
+# PM2
+################################################
+
+
+log_with_style INFO "启动 PM2"
+
+
+pm2 ls >/dev/null 2>&1 || true
+
+
+reload_pm2
+
+
+
+################################################
+# bot
+################################################
+
+
+if [[ "$AutoStartBot" == "true" ]]; then
+
+
+    log_with_style INFO "启动 bot"
+
+
+    nohup ql bot \
+    > "$dir_log/bot.log" 2>&1 &
+
+
+fi
+
+
+
+################################################
+# extra
+################################################
+
+
+if [[ "$EnableExtraShell" == "true" ]]; then
+
+
+    log_with_style INFO "执行 extra"
+
+
+    nohup ql extra \
+    > "$dir_log/extra.log" 2>&1 &
+
+
+fi
+
+
+
+################################################
+# 等待青龙启动
+################################################
+
+
+echo "等待青龙服务启动..."
+
+
+for i in {1..30}
+do
+
+    if curl -sf \
+    http://127.0.0.1:5700/api/health \
+    >/dev/null 2>&1
+    then
+
+        echo "✔ 青龙启动完成"
+
+        break
+
+    fi
+
+
+    sleep 2
+
+done
+
+
+
+################################################
+# nginx
+################################################
+
+
+echo "======================启动 nginx========================"
+
+
+
+if command -v envsubst >/dev/null 2>&1; then
+
+
+    if [ -f /etc/nginx/conf.d/front.conf ]; then
+
+
+        envsubst '$PORT' \
+        < /etc/nginx/conf.d/front.conf \
+        > /etc/nginx/conf.d/front_render.conf
+
+
+        mv \
+        /etc/nginx/conf.d/front_render.conf \
+        /etc/nginx/conf.d/front.conf
+
+
+        echo "✔ nginx PORT 替换完成"
+
+
+    fi
+
+
+fi
+
+
+
+nginx -t
+
+
+if nginx -s reload 2>/dev/null
+then
+
+    echo "✔ nginx reload"
+
+else
+
+    nginx -c /etc/nginx/nginx.conf
+
+    echo "✔ nginx start"
+
+fi
+
+
+
+################################################
+# 初始化管理员
+################################################
+
+
+sleep 5
+
+
+if [ -n "$ADMIN_USERNAME" ] && \
+   [ -n "$ADMIN_PASSWORD" ]
+then
+
+
+echo "########## 初始化管理员 ##########"
+
+
+
+API=$(curl -s \
+"http://127.0.0.1:5700/api/user/init?t=$(date +%s)" \
+-X PUT \
+-H "Content-Type: application/json;charset=UTF-8" \
+--data "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_PASSWORD\"}"
+)
+
+
+
+CODE=$(echo "$API" | jq -r .code)
+
+
+
+if [ "$CODE" = "200" ]
+then
+
+    echo "✔ 管理员初始化成功"
+
+else
+
+    echo "⚠️ 管理员初始化返回:"
+    echo "$API"
+
+fi
+
+
+fi
+
+
+
+################################################
+# rclone 恢复
+################################################
+
+
+if [ -n "$RCLONE_CONF" ]; then
+
+
+echo "########## rclone 恢复 ##########"
+
+
+
+if rclone ls "$REMOTE_FOLDER" >/dev/null 2>&1
+then
+
+
+    mkdir -p "$QL_DIR/.tmp/data"
+
+
+    COUNT=$(rclone ls "$REMOTE_FOLDER" | wc -l)
+
+
+    if [ "$COUNT" -gt 0 ]
+    then
+
+
+        rclone sync \
+        "$REMOTE_FOLDER" \
+        "$QL_DIR/.tmp/data"
+
+
+
+        real_time=true ql reload data
+
+
+        echo "✔ 数据恢复完成"
+
+
+    else
+
+        echo "首次安装，无备份"
+
+    fi
+
+
+else
+
+    echo "⚠️ rclone remote 不可用"
+
+fi
+
+
+fi
+
+
+
+################################################
+# notify
+################################################
+
 
 if [ -n "$NOTIFY_CONFIG" ]; then
-    python /notify.py
-    dir_root=/ql && source /ql/shell/api.sh && notify_api '青龙服务启动通知' '青龙面板成功启动'
+
+
+echo "########## 通知 ##########"
+
+
+
+python /notify.py || true
+
+
+
+sleep 10
+
+
+
+source "$QL_DIR/shell/api.sh"
+
+
+
+notify_api \
+"青龙服务启动通知" \
+"青龙面板成功启动"
+
+
+
 else
-    echo "没有检测到通知配置信息，不进行通知"
+
+
+echo "没有通知配置"
+
+
 fi
 
-echo -e "##########启动 code-server############"
-export PASSWORD=$ADMIN_PASSWORD
-code-server --bind-addr 0.0.0.0:7860 --port 7860 &
 
-tail -f /dev/null
+
+################################################
+# code-server
+################################################
+
+
+
+echo "########## 启动 code-server ##########"
+
+
+
+CODE_HOME=${HOME:-/home/coder}
+
+
+
+mkdir -p \
+"$CODE_HOME/.config/code-server"
+
+
+
+cat > "$CODE_HOME/.config/code-server/config.yaml" <<EOF
+bind-addr: 0.0.0.0:10001
+auth: none
+EOF
+
+
+
+code-server \
+--config "$CODE_HOME/.config/code-server/config.yaml" \
+>/tmp/code-server.log 2>&1 &
+
+
+
+sleep 3
+
+
+
+echo "code-server:"
+cat /tmp/code-server.log || true
+
+
+
+################################################
+# 保持 PM2 日志
+################################################
+
+
+echo "青龙启动完成"
+
+
+pm2 logs \
+>/ql/data/pm2.log 2>&1 &
+
+
+
+wait
