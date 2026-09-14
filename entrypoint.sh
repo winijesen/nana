@@ -1,18 +1,15 @@
 #!/bin/bash
 
-echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FINAL-V7 🔥🔥🔥"
-
+echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FINAL-V8 🔥🔥🔥"
 
 set -e
-
 
 
 ################################################
 # 基础环境
 ################################################
 
-
-export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+export PATH="$HOME/bin:$PATH"
 
 
 QL_DIR=/ql
@@ -24,18 +21,19 @@ echo "USER=$(whoami)"
 
 
 
-
 ################################################
 # 加载青龙环境
 ################################################
 
-
 if [ -f "$dir_shell/share.sh" ]; then
 
-    source "$dir_shell/share.sh" || true
+    source "$dir_shell/share.sh"
+
+else
+
+    echo "⚠️ 未找到 share.sh"
 
 fi
-
 
 
 
@@ -46,7 +44,6 @@ fi
 
 
 echo "======================写入 rclone 配置========================"
-
 
 
 if [ -n "$RCLONE_CONF" ]; then
@@ -79,15 +76,17 @@ fi
 
 
 ################################################
-# 青龙端口
+# Render PORT
 ################################################
 
 
 echo "Render PORT=$PORT"
 
 
-echo "✔ 青龙固定端口5700"
 
+################################################
+# 固定青龙端口
+################################################
 
 
 if [ -f "$QL_DIR/.env" ]; then
@@ -101,12 +100,15 @@ sed -i \
 fi
 
 
+echo "✔ 青龙固定端口5700"
+
+
 
 
 
 
 ################################################
-# 启动青龙
+# 启动青龙 PM2
 ################################################
 
 
@@ -114,50 +116,30 @@ echo "[INFO]启动PM2"
 
 
 
-echo "===== ql检测 ====="
+# 这里恢复青龙官方方式
 
-
-which ql || true
-
-
-
-echo "===== ql目录 ====="
-
-
-ls -la /ql || true
-
-
-
-echo "===== 启动青龙 ====="
-
-
-
-if command -v ql >/dev/null 2>&1
+if command -v reload_pm2 >/dev/null 2>&1
 
 then
 
-
-    ql start
+    reload_pm2
 
 
 else
 
 
-    echo "❌ ql命令不存在"
+    echo "使用青龙PM2恢复"
 
 
-    exit 1
+    pm2 resurrect || true
 
 
 fi
 
 
 
-sleep 5
 
-
-
-pm2 status
+pm2 status || true
 
 
 
@@ -170,7 +152,6 @@ pm2 status
 
 
 echo "等待青龙启动..."
-
 
 
 for i in {1..30}
@@ -234,9 +215,7 @@ mv /tmp/front.conf \
 echo "✔ nginx PORT替换完成"
 
 
-
 fi
-
 
 
 
@@ -245,11 +224,24 @@ nginx -t
 
 
 
-nginx -g "daemon off;" &
+if nginx -s reload 2>/dev/null
 
+then
+
+
+echo "✔ nginx reload"
+
+
+else
+
+
+nginx
 
 
 echo "✔ nginx启动完成"
+
+
+fi
 
 
 
@@ -258,7 +250,7 @@ echo "✔ nginx启动完成"
 
 
 ################################################
-# 初始化管理员
+# 管理员初始化
 ################################################
 
 
@@ -270,7 +262,6 @@ if [ -n "$ADMIN_USERNAME" ] && \
 [ -n "$ADMIN_PASSWORD" ]
 
 then
-
 
 
 echo "########## 初始化管理员 ##########"
@@ -285,9 +276,7 @@ curl -s \
 "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_PASSWORD\"}"
 
 
-
 echo
-
 
 
 fi
@@ -330,20 +319,16 @@ rclone sync \
 echo "✔ 数据恢复完成"
 
 
-
 else
 
 
 echo "⚠️ rclone不可用"
 
 
-
 fi
 
 
-
 fi
-
 
 
 
@@ -363,16 +348,13 @@ then
 echo "########## 通知 ##########"
 
 
-
 python /notify.py || true
-
 
 
 else
 
 
 echo "没有通知配置"
-
 
 
 fi
@@ -388,7 +370,6 @@ fi
 ################################################
 
 
-
 echo "########## 启动 code-server ##########"
 
 
@@ -399,7 +380,6 @@ CODE_HOME=/home/qinglong
 
 mkdir -p \
 "$CODE_HOME/.config/code-server"
-
 
 
 
@@ -414,24 +394,21 @@ EOF
 
 
 
-
 echo "启动 code-server"
 
 
 
+# 重点：
+# 不让 Render PORT=10000 影响 code-server
+
+PORT=10001 \
 code-server \
 --config "$CODE_HOME/.config/code-server/config.yaml" \
 >/tmp/code-server.log 2>&1 &
 
 
 
-
-CODE_PID=$!
-
-
-
-echo "code-server PID=$CODE_PID"
-
+echo "code-server PID=$!"
 
 
 
@@ -439,9 +416,7 @@ sleep 5
 
 
 
-
 echo "########## code-server日志 ##########"
-
 
 
 cat /tmp/code-server.log || true
@@ -451,10 +426,10 @@ cat /tmp/code-server.log || true
 
 
 
-################################################
-# 端口检查
-################################################
 
+################################################
+# 端口检测
+################################################
 
 
 echo "########## 端口检测 ##########"
@@ -462,7 +437,6 @@ echo "########## 端口检测 ##########"
 
 
 ss -lntp | grep -E "5700|10000|10001" || true
-
 
 
 
@@ -477,7 +451,7 @@ echo "================================"
 
 
 ################################################
-# 保持容器
+# 保持运行
 ################################################
 
 
