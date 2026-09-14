@@ -7,7 +7,7 @@ on:
       - 'QingLong/services.json'
       - 'QingLong/notify.py'
       - 'QingLong/front.conf'
-      - 'QingLong/docker-entrypoint.sh'
+      - 'QingLong/entrypoint.sh'
       - 'QingLong/README.md'
       - 'QingLong/Dockerfile'
   workflow_dispatch:
@@ -41,7 +41,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./QingLong
+          context: .
           push: true
           tags: |
             ghcr.io/${{ steps.lower-repo.outputs.repository }}/ceodwya:latest
