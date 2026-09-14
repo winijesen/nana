@@ -1,17 +1,15 @@
 FROM ghcr.io/whyour/qinglong:2.21.0-debian
 
 
-LABEL maintainer="whyour"
+LABEL maintainer="winijesen"
 
 
 USER root
 
 
+
 # =====================================
 # 安装扩展组件
-# nginx
-# rclone
-# gettext-base(envsubst)
 # =====================================
 
 RUN apt-get update && \
@@ -27,7 +25,7 @@ RUN apt-get update && \
     tzdata \
     procps \
     unzip \
-    ca-certificates \
+    net-tools \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -43,21 +41,19 @@ RUN curl -fsSL https://code-server.dev/install.sh | \
 
 
 # =====================================
-# nginx 配置
+# nginx
 # =====================================
 
 RUN rm -f /etc/nginx/conf.d/default.conf && \
     rm -f /etc/nginx/sites-enabled/default
 
 
-COPY nginx.conf /etc/nginx/nginx.conf
-
 COPY front.conf /etc/nginx/conf.d/front.conf
 
 
 
 # =====================================
-# 通知脚本
+# notify
 # =====================================
 
 COPY notify.py /notify.py
@@ -67,14 +63,13 @@ RUN chmod 755 /notify.py
 
 
 # =====================================
-# 自定义启动脚本
-# 注意：
-# GitHub 文件名是 entrypoint.sh
+# entrypoint
 # =====================================
 
-COPY entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 
 
@@ -87,19 +82,6 @@ RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
 
 
 
-# =====================================
-# Git 配置
-# =====================================
-
-RUN git config --global user.email "qinglong@users.noreply.github.com" && \
-    git config --global user.name "qinglong"
-
-
-
-# =====================================
-# 工作目录
-# =====================================
-
 WORKDIR /ql
 
 
@@ -108,10 +90,7 @@ WORKDIR /ql
 # 启动
 # =====================================
 
-USER root
-
-
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 
 
