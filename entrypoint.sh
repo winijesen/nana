@@ -1,6 +1,7 @@
 #!/bin/bash
 
-echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FINAL 🔥🔥🔥"
+
+echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FINAL-V3 🔥🔥🔥"
 
 
 set -e
@@ -9,17 +10,23 @@ set -e
 export PATH="$HOME/bin:$PATH"
 
 
+
 ################################################
 # 基础变量
 ################################################
+
 
 QL_DIR=${QL_DIR:-/ql}
 
 dir_shell="$QL_DIR/shell"
 
 
+
 echo "HOME=$HOME"
+
 echo "USER=$(whoami)"
+
+
 
 
 
@@ -27,15 +34,18 @@ echo "USER=$(whoami)"
 # 加载青龙环境
 ################################################
 
+
 if [ -f "$dir_shell/share.sh" ]; then
 
     . "$dir_shell/share.sh"
 
 else
 
-    echo "⚠️ share.sh 不存在"
+    echo "⚠️ share.sh不存在"
 
 fi
+
+
 
 
 
@@ -46,7 +56,9 @@ if [ -f "$dir_shell/env.sh" ]; then
 
 
     export BACK_PORT="${ql_port}"
+
     export GRPC_PORT="${ql_grpc_port}"
+
 
 
     . "$dir_shell/env.sh"
@@ -64,12 +76,14 @@ fi
 
 
 
+
 ################################################
-# rclone配置
+# rclone
 ################################################
 
 
 echo
+
 echo "======================写入 rclone 配置========================"
 
 
@@ -89,7 +103,7 @@ if [ -n "$RCLONE_CONF" ]; then
 
 
 
-    echo "✔ rclone 配置完成"
+    echo "✔ rclone配置完成"
 
 
 else
@@ -99,6 +113,7 @@ else
 
 
 fi
+
 
 
 
@@ -117,9 +132,11 @@ echo "Render PORT=$PORT"
 
 if [ -z "$PORT" ]; then
 
-    echo "❌ Render PORT不存在"
+
+    echo "❌ PORT为空"
 
     exit 1
+
 
 fi
 
@@ -127,8 +144,9 @@ fi
 
 
 
+
 ################################################
-# 固定青龙端口
+# 青龙端口
 ################################################
 
 
@@ -144,25 +162,26 @@ if [ -f "$QL_DIR/.env" ]; then
     echo "✔ 青龙固定端口5700"
 
 
-
 fi
 
 
 
 
 
+
 ################################################
-# 启动PM2
+# PM2启动
 ################################################
 
 
 echo
 
-echo "[INFO] 启动 PM2"
+echo "[INFO]启动PM2"
 
 
 
 reload_pm2
+
 
 
 
@@ -178,6 +197,7 @@ echo "等待青龙启动..."
 
 
 for i in {1..40}
+
 do
 
 
@@ -187,9 +207,11 @@ do
 
     then
 
+
         echo "✔ 青龙启动完成"
 
         break
+
 
     fi
 
@@ -198,6 +220,8 @@ do
 
 
 done
+
+
 
 
 
@@ -233,7 +257,6 @@ if [ -f /etc/nginx/conf.d/front.conf ]; then
     echo "✔ nginx PORT替换完成"
 
 
-
 fi
 
 
@@ -254,8 +277,9 @@ echo "✔ nginx启动完成"
 
 
 
+
 ################################################
-# 管理员初始化
+# 管理员
 ################################################
 
 
@@ -267,6 +291,7 @@ if [ -n "$ADMIN_USERNAME" ] && \
    [ -n "$ADMIN_PASSWORD" ]
 
 then
+
 
 
 echo
@@ -325,7 +350,6 @@ if [ "$COUNT" -gt 0 ]
 then
 
 
-
 rclone sync \
 "$REMOTE_FOLDER" \
 "$QL_DIR/.tmp/data"
@@ -343,7 +367,7 @@ echo "✔ 数据恢复完成"
 else
 
 
-echo "首次安装，没有备份"
+echo "首次安装，无备份"
 
 
 
@@ -354,15 +378,15 @@ fi
 else
 
 
-echo "⚠️ rclone连接失败"
+echo "⚠️ rclone不可用"
 
 
 
 fi
 
 
-
 fi
+
 
 
 
@@ -375,6 +399,7 @@ fi
 
 
 if [ -n "$NOTIFY_CONFIG" ]; then
+
 
 
 echo
@@ -407,9 +432,7 @@ else
 echo "没有通知配置"
 
 
-
 fi
-
 
 
 
@@ -435,29 +458,23 @@ echo "CODE_HOME=$CODE_HOME"
 
 
 
+################################################
+# 清理旧配置
+################################################
+
+
+rm -rf \
+"$CODE_HOME/.config/code-server"
+
+
+
 mkdir -p \
-"$CODE_HOME/.config/code-server" \
+"$CODE_HOME/.config/code-server"
+
+
+
+mkdir -p \
 "$CODE_HOME/.local/share/code-server"
-
-
-
-
-# 删除旧配置，避免10000冲突
-
-rm -f \
-"$CODE_HOME/.config/code-server/config.yaml"
-
-
-
-
-# 创建正确配置
-
-cat > "$CODE_HOME/.config/code-server/config.yaml" <<EOF
-bind-addr: 0.0.0.0:10001
-auth: none
-disable-telemetry: true
-EOF
-
 
 
 
@@ -476,12 +493,19 @@ code-server --version || true
 
 
 
+################################################
+# 启动
+################################################
+
+
 echo "启动 code-server"
 
 
 
 nohup /usr/bin/code-server \
---config "$CODE_HOME/.config/code-server/config.yaml" \
+--bind-addr 0.0.0.0:10001 \
+--auth none \
+--disable-telemetry \
 --user-data-dir "$CODE_HOME/.local/share/code-server" \
 >/tmp/code-server.log 2>&1 &
 
@@ -495,8 +519,7 @@ echo "code-server PID=$CODE_PID"
 
 
 
-sleep 8
-
+sleep 10
 
 
 
@@ -507,7 +530,9 @@ echo
 echo "########## code-server日志 ##########"
 
 
+
 cat /tmp/code-server.log || true
+
 
 
 
@@ -518,8 +543,8 @@ echo
 echo "########## code-server进程 ##########"
 
 
-ps aux | grep code-server | grep -v grep || true
 
+ps aux | grep code-server | grep -v grep || true
 
 
 
@@ -532,7 +557,7 @@ echo "########## 端口检测 ##########"
 
 
 (ss -tlnp 2>/dev/null || true) \
-| grep -E "5700|10001|$PORT" || true
+| grep -E "10000|10001|5700" || true
 
 
 
@@ -540,7 +565,7 @@ echo "########## 端口检测 ##########"
 
 
 ################################################
-# 保持容器
+# 保持运行
 ################################################
 
 
