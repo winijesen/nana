@@ -27,6 +27,7 @@ RUN apt-get update && \
     tzdata \
     procps \
     unzip \
+    ca-certificates \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -49,6 +50,8 @@ RUN rm -f /etc/nginx/conf.d/default.conf && \
     rm -f /etc/nginx/sites-enabled/default
 
 
+COPY nginx.conf /etc/nginx/nginx.conf
+
 COPY front.conf /etc/nginx/conf.d/front.conf
 
 
@@ -65,9 +68,11 @@ RUN chmod 755 /notify.py
 
 # =====================================
 # 自定义启动脚本
+# 注意：
+# GitHub 文件名是 entrypoint.sh
 # =====================================
 
-COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
@@ -82,15 +87,28 @@ RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
 
 
 
+# =====================================
+# Git 配置
+# =====================================
+
+RUN git config --global user.email "qinglong@users.noreply.github.com" && \
+    git config --global user.name "qinglong"
+
+
+
+# =====================================
+# 工作目录
+# =====================================
+
 WORKDIR /ql
 
 
 
-# 保持 root 启动
-# nginx 需要权限
-# 青龙内部 PM2 自己管理
-USER root
+# =====================================
+# 启动
+# =====================================
 
+USER root
 
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
