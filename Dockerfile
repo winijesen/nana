@@ -11,7 +11,7 @@ USER root
 # ==================================================
 # 安装扩展组件
 # nginx
-# rclone
+# sshpass
 # envsubst
 # jq
 # 网络工具
@@ -20,7 +20,7 @@ USER root
 RUN apt-get update && \
     apt-get install --no-install-recommends -y \
     nginx \
-    rclone \
+    sshpass \
     gettext-base \
     jq \
     curl \
@@ -34,6 +34,18 @@ RUN apt-get update && \
     iproute2 \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+
+
+# ==================================================
+# 安装最新版 rclone
+# 官方安装脚本
+# 自动下载 + 解压 + 安装
+# ==================================================
+
+RUN curl https://rclone.org/install.sh | bash && \
+    rclone version && \
+    sshpass -V
 
 
 
@@ -101,8 +113,8 @@ USER root
 
 # ==================================================
 # Render
-# 实际端口由 nginx 使用环境变量 PORT
-# EXPOSE 只是说明
+# 实际监听由 nginx 使用 $PORT
+# EXPOSE 不决定 Render 端口
 # ==================================================
 
 EXPOSE 80
