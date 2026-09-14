@@ -1,15 +1,19 @@
 #!/bin/bash
 
-echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FINAL-V6 🔥🔥🔥"
+echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FINAL-V7 🔥🔥🔥"
+
 
 set -e
 
 
+
 ################################################
-# 基础
+# 基础环境
 ################################################
 
+
 export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+
 
 QL_DIR=/ql
 dir_shell=$QL_DIR/shell
@@ -17,6 +21,7 @@ dir_shell=$QL_DIR/shell
 
 echo "HOME=$HOME"
 echo "USER=$(whoami)"
+
 
 
 
@@ -33,12 +38,15 @@ fi
 
 
 
+
+
 ################################################
 # rclone
 ################################################
 
 
 echo "======================写入 rclone 配置========================"
+
 
 
 if [ -n "$RCLONE_CONF" ]; then
@@ -68,12 +76,15 @@ fi
 
 
 
+
+
 ################################################
-# 固定青龙端口
+# 青龙端口
 ################################################
 
 
 echo "Render PORT=$PORT"
+
 
 echo "✔ 青龙固定端口5700"
 
@@ -92,6 +103,8 @@ fi
 
 
 
+
+
 ################################################
 # 启动青龙
 ################################################
@@ -101,50 +114,52 @@ echo "[INFO]启动PM2"
 
 
 
-# 清理旧进程
-
-pm2 delete qinglong >/dev/null 2>&1 || true
+echo "===== ql检测 ====="
 
 
-
-# 找青龙入口
-
-if [ -f "$QL_DIR/static/dist/index.js" ]; then
-
-
-pm2 start \
-"$QL_DIR/static/dist/index.js" \
---name qinglong
+which ql || true
 
 
 
-elif [ -f "$QL_DIR/server/index.js" ]; then
+echo "===== ql目录 ====="
 
 
-pm2 start \
-"$QL_DIR/server/index.js" \
---name qinglong
+ls -la /ql || true
 
+
+
+echo "===== 启动青龙 ====="
+
+
+
+if command -v ql >/dev/null 2>&1
+
+then
+
+
+    ql start
 
 
 else
 
 
-echo "❌ 找不到青龙启动文件"
+    echo "❌ ql命令不存在"
 
 
-exit 1
+    exit 1
 
 
 fi
 
 
 
-pm2 save
+sleep 5
 
 
 
 pm2 status
+
+
 
 
 
@@ -157,7 +172,9 @@ pm2 status
 echo "等待青龙启动..."
 
 
+
 for i in {1..30}
+
 do
 
 
@@ -170,16 +187,20 @@ then
 
 echo "✔ 青龙启动完成"
 
+
 break
 
 
 fi
 
 
+
 sleep 2
 
 
 done
+
+
 
 
 
@@ -194,7 +215,9 @@ echo "======================启动 nginx========================"
 
 
 
-if [ -f /etc/nginx/conf.d/front.conf ]; then
+if [ -f /etc/nginx/conf.d/front.conf ]
+
+then
 
 
 envsubst '$PORT' \
@@ -202,14 +225,19 @@ envsubst '$PORT' \
 > /tmp/front.conf
 
 
+
 mv /tmp/front.conf \
 /etc/nginx/conf.d/front.conf
+
 
 
 echo "✔ nginx PORT替换完成"
 
 
+
 fi
+
+
 
 
 
@@ -226,10 +254,12 @@ echo "✔ nginx启动完成"
 
 
 
-################################################
-# 管理员初始化
-################################################
 
+
+
+################################################
+# 初始化管理员
+################################################
 
 
 sleep 5
@@ -240,6 +270,7 @@ if [ -n "$ADMIN_USERNAME" ] && \
 [ -n "$ADMIN_PASSWORD" ]
 
 then
+
 
 
 echo "########## 初始化管理员 ##########"
@@ -254,10 +285,14 @@ curl -s \
 "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_PASSWORD\"}"
 
 
+
 echo
 
 
+
 fi
+
+
 
 
 
@@ -268,8 +303,9 @@ fi
 ################################################
 
 
+if [ -n "$RCLONE_CONF" ]
 
-if [ -n "$RCLONE_CONF" ]; then
+then
 
 
 echo "########## rclone恢复 ##########"
@@ -284,6 +320,7 @@ then
 mkdir -p "$QL_DIR/.tmp/data"
 
 
+
 rclone sync \
 "$REMOTE_FOLDER" \
 "$QL_DIR/.tmp/data"
@@ -293,16 +330,20 @@ rclone sync \
 echo "✔ 数据恢复完成"
 
 
+
 else
 
 
 echo "⚠️ rclone不可用"
 
 
+
 fi
 
 
+
 fi
+
 
 
 
@@ -310,20 +351,32 @@ fi
 
 
 ################################################
-# 通知
+# notify
 ################################################
 
 
-if [ -n "$NOTIFY_CONFIG" ]; then
+if [ -n "$NOTIFY_CONFIG" ]
+
+then
 
 
 echo "########## 通知 ##########"
 
 
+
 python /notify.py || true
 
 
+
+else
+
+
+echo "没有通知配置"
+
+
+
 fi
+
 
 
 
@@ -349,6 +402,7 @@ mkdir -p \
 
 
 
+
 cat > "$CODE_HOME/.config/code-server/config.yaml" <<EOF
 
 bind-addr: 0.0.0.0:10001
@@ -356,6 +410,7 @@ auth: none
 disable-telemetry: true
 
 EOF
+
 
 
 
@@ -371,11 +426,21 @@ code-server \
 
 
 
-echo "code-server PID=$!"
+CODE_PID=$!
+
+
+
+echo "code-server PID=$CODE_PID"
+
 
 
 
 sleep 5
+
+
+
+
+echo "########## code-server日志 ##########"
 
 
 
@@ -387,14 +452,17 @@ cat /tmp/code-server.log || true
 
 
 ################################################
-# 状态
+# 端口检查
 ################################################
+
 
 
 echo "########## 端口检测 ##########"
 
 
+
 ss -lntp | grep -E "5700|10000|10001" || true
+
 
 
 
@@ -407,6 +475,10 @@ echo "================================"
 
 
 
-# 保持容器运行
+
+################################################
+# 保持容器
+################################################
+
 
 tail -f /dev/null
