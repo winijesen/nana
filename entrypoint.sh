@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FINAL-V7 🔥🔥🔥"
+echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FINAL-V8 🔥🔥🔥"
 
 
 set -e
@@ -65,7 +65,6 @@ fi
 
 
 
-
 ################################################
 # rclone配置
 ################################################
@@ -101,7 +100,6 @@ else
 
 
 fi
-
 
 
 
@@ -166,6 +164,7 @@ echo "[INFO] 启动 PM2"
 
 
 
+# 青龙官方函数
 reload_pm2
 
 
@@ -207,7 +206,6 @@ done
 
 
 
-
 ################################################
 # nginx
 ################################################
@@ -240,6 +238,7 @@ if [ -f /etc/nginx/conf.d/front.conf ]; then
 
 
 fi
+
 
 
 
@@ -377,7 +376,6 @@ fi
 
 
 
-
 ################################################
 # notify
 ################################################
@@ -426,112 +424,8 @@ fi
 
 
 ################################################
-# code-server
+# 最终状态
 ################################################
-
-
-echo
-
-echo "########## 启动 code-server ##########"
-
-
-
-CODE_HOME="$HOME"
-
-
-
-echo "CODE_HOME=$CODE_HOME"
-
-
-
-mkdir -p \
-"$CODE_HOME/.config/code-server" \
-"$CODE_HOME/.local/share/code-server"
-
-
-
-
-# 防止 Render 重启残留
-
-pkill -f code-server || true
-
-
-
-
-
-cat > "$CODE_HOME/.config/code-server/config.yaml" <<EOF
-bind-addr: 0.0.0.0:10001
-auth: none
-disable-telemetry: true
-EOF
-
-
-
-
-
-echo "code-server路径:"
-
-which code-server || true
-
-
-
-echo "code-server版本:"
-
-code-server --version || true
-
-
-
-
-
-echo "启动 code-server"
-
-
-
-nohup /usr/bin/code-server \
---config "$CODE_HOME/.config/code-server/config.yaml" \
---user-data-dir "$CODE_HOME/.local/share/code-server" \
->/tmp/code-server.log 2>&1 &
-
-
-
-CODE_PID=$!
-
-
-
-echo "code-server PID=$CODE_PID"
-
-
-
-sleep 8
-
-
-
-
-
-echo
-
-echo "########## code-server日志 ##########"
-
-
-
-cat /tmp/code-server.log || true
-
-
-
-
-
-
-echo
-
-echo "########## code-server进程 ##########"
-
-
-
-ps aux | grep code-server | grep -v grep || true
-
-
-
-
 
 
 echo
@@ -541,16 +435,10 @@ echo "########## 端口检测 ##########"
 
 
 (ss -tlnp 2>/dev/null || true) \
-| grep -E "5700|10001|$PORT" || true
+| grep -E "5700|$PORT" || true
 
 
 
-
-
-
-################################################
-# 保持容器
-################################################
 
 
 echo
@@ -563,4 +451,6 @@ echo "================================"
 
 
 
-wait
+# 保持Render容器运行
+
+tail -f /dev/null
