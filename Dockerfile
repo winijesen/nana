@@ -38,33 +38,13 @@ RUN apt-get update && \
 
 
 # ==================================================
-# 安装 code-server
-# ==================================================
-
-RUN curl -fsSL https://code-server.dev/install.sh | \
-    sh -s -- --version=4.96.4
-
-
-
-# ==================================================
-# code-server 配置目录
-# 防止首次启动生成错误目录
-# ==================================================
-
-RUN mkdir -p \
-    /home/qinglong/.config/code-server \
-    /home/qinglong/.local/share/code-server && \
-    chown -R root:root /home/qinglong
-
-
-
-# ==================================================
 # nginx 配置
 # ==================================================
 
 RUN rm -f /etc/nginx/conf.d/default.conf && \
     rm -f /etc/nginx/sites-enabled/default && \
     mkdir -p /var/log/nginx
+
 
 
 COPY front.conf /etc/nginx/conf.d/front.conf
@@ -120,12 +100,12 @@ USER root
 
 
 # ==================================================
-# Render:
-# 实际监听由 nginx 使用 $PORT
-# EXPOSE 不决定端口
+# Render
+# 实际端口由 nginx 使用环境变量 PORT
+# EXPOSE 只是说明
 # ==================================================
 
-EXPOSE 80
+EXPOSE 10000
 
 
 
