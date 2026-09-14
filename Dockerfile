@@ -38,7 +38,12 @@ RUN apt-get update && \
 RUN curl -fsSL https://code-server.dev/install.sh | \
     sh -s -- --version=4.96.4
 
+# ==================================================
+# code-server 配置目录
+# ==================================================
 
+RUN mkdir -p /home/qinglong/.config/code-server && \
+    chown -R root:root /home/qinglong
 
 # =====================================
 # nginx
