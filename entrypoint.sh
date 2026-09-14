@@ -1,23 +1,35 @@
 #!/bin/bash
 
-echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FINAL-V5 🔥🔥🔥"
+echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FINAL-V6 🔥🔥🔥"
 
 set -e
 
 
 ################################################
-# 基础环境
+# 基础
 ################################################
 
-export PATH="$HOME/bin:$PATH"
-
+export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 
 QL_DIR=/ql
+dir_shell=$QL_DIR/shell
 
 
 echo "HOME=$HOME"
-
 echo "USER=$(whoami)"
+
+
+
+################################################
+# 加载青龙环境
+################################################
+
+
+if [ -f "$dir_shell/share.sh" ]; then
+
+    source "$dir_shell/share.sh" || true
+
+fi
 
 
 
@@ -29,29 +41,26 @@ echo "USER=$(whoami)"
 echo "======================写入 rclone 配置========================"
 
 
-
 if [ -n "$RCLONE_CONF" ]; then
 
 
-    mkdir -p "$HOME/.config/rclone"
+mkdir -p "$HOME/.config/rclone"
 
 
-    echo "$RCLONE_CONF" \
-    > "$HOME/.config/rclone/rclone.conf"
+echo "$RCLONE_CONF" \
+> "$HOME/.config/rclone/rclone.conf"
 
 
-
-    chmod 600 "$HOME/.config/rclone/rclone.conf"
-
+chmod 600 "$HOME/.config/rclone/rclone.conf"
 
 
-    echo "✔ rclone配置完成"
+echo "✔ rclone配置完成"
 
 
 else
 
 
-    echo "没有检测到 RCLONE_CONF"
+echo "没有检测到 RCLONE_CONF"
 
 
 fi
@@ -59,14 +68,12 @@ fi
 
 
 
-
 ################################################
-# 青龙端口
+# 固定青龙端口
 ################################################
 
 
 echo "Render PORT=$PORT"
-
 
 echo "✔ 青龙固定端口5700"
 
@@ -75,13 +82,12 @@ echo "✔ 青龙固定端口5700"
 if [ -f "$QL_DIR/.env" ]; then
 
 
-    sed -i \
-    "s/^PORT=.*/PORT=5700/" \
-    "$QL_DIR/.env"
+sed -i \
+"s/^PORT=.*/PORT=5700/" \
+"$QL_DIR/.env"
 
 
 fi
-
 
 
 
@@ -95,8 +101,50 @@ echo "[INFO]启动PM2"
 
 
 
-reload_pm2
+# 清理旧进程
 
+pm2 delete qinglong >/dev/null 2>&1 || true
+
+
+
+# 找青龙入口
+
+if [ -f "$QL_DIR/static/dist/index.js" ]; then
+
+
+pm2 start \
+"$QL_DIR/static/dist/index.js" \
+--name qinglong
+
+
+
+elif [ -f "$QL_DIR/server/index.js" ]; then
+
+
+pm2 start \
+"$QL_DIR/server/index.js" \
+--name qinglong
+
+
+
+else
+
+
+echo "❌ 找不到青龙启动文件"
+
+
+exit 1
+
+
+fi
+
+
+
+pm2 save
+
+
+
+pm2 status
 
 
 
@@ -106,34 +154,32 @@ reload_pm2
 ################################################
 
 
-
 echo "等待青龙启动..."
 
 
-
-for i in {1..40}
+for i in {1..30}
 do
 
 
-    if curl -sf \
-    http://127.0.0.1:5700/api/health \
-    >/dev/null 2>&1
-    then
+if curl -sf \
+http://127.0.0.1:5700/api/health \
+>/dev/null 2>&1
+
+then
 
 
-        echo "✔ 青龙启动完成"
+echo "✔ 青龙启动完成"
 
-        break
-
-
-    fi
+break
 
 
-    sleep 2
+fi
+
+
+sleep 2
 
 
 done
-
 
 
 
@@ -144,7 +190,6 @@ done
 ################################################
 
 
-
 echo "======================启动 nginx========================"
 
 
@@ -152,24 +197,19 @@ echo "======================启动 nginx========================"
 if [ -f /etc/nginx/conf.d/front.conf ]; then
 
 
-
-    envsubst '$PORT' \
-    < /etc/nginx/conf.d/front.conf \
-    > /tmp/front.conf
-
+envsubst '$PORT' \
+< /etc/nginx/conf.d/front.conf \
+> /tmp/front.conf
 
 
-    mv /tmp/front.conf \
-    /etc/nginx/conf.d/front.conf
+mv /tmp/front.conf \
+/etc/nginx/conf.d/front.conf
 
 
-
-    echo "✔ nginx PORT替换完成"
-
+echo "✔ nginx PORT替换完成"
 
 
 fi
-
 
 
 
@@ -177,28 +217,17 @@ nginx -t
 
 
 
-if nginx -s reload 2>/dev/null
-then
-
-    echo "✔ nginx reload"
-
-else
-
-    nginx \
-    -c /etc/nginx/nginx.conf
+nginx -g "daemon off;" &
 
 
-    echo "✔ nginx启动完成"
 
-fi
-
-
+echo "✔ nginx启动完成"
 
 
 
 
 ################################################
-# 初始化管理员
+# 管理员初始化
 ################################################
 
 
@@ -208,9 +237,9 @@ sleep 5
 
 
 if [ -n "$ADMIN_USERNAME" ] && \
-   [ -n "$ADMIN_PASSWORD" ]
-then
+[ -n "$ADMIN_PASSWORD" ]
 
+then
 
 
 echo "########## 初始化管理员 ##########"
@@ -225,12 +254,10 @@ curl -s \
 "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_PASSWORD\"}"
 
 
-
 echo
 
 
 fi
-
 
 
 
@@ -245,18 +272,16 @@ fi
 if [ -n "$RCLONE_CONF" ]; then
 
 
-
 echo "########## rclone恢复 ##########"
 
 
 
 if rclone ls "$REMOTE_FOLDER" >/dev/null 2>&1
+
 then
 
 
-
 mkdir -p "$QL_DIR/.tmp/data"
-
 
 
 rclone sync \
@@ -265,12 +290,7 @@ rclone sync \
 
 
 
-real_time=true ql reload data
-
-
-
 echo "✔ 数据恢复完成"
-
 
 
 else
@@ -279,9 +299,7 @@ else
 echo "⚠️ rclone不可用"
 
 
-
 fi
-
 
 
 fi
@@ -292,42 +310,17 @@ fi
 
 
 ################################################
-# notify
+# 通知
 ################################################
-
 
 
 if [ -n "$NOTIFY_CONFIG" ]; then
 
 
-
 echo "########## 通知 ##########"
 
 
-
 python /notify.py || true
-
-
-
-sleep 10
-
-
-
-source "$QL_DIR/shell/api.sh"
-
-
-
-notify_api \
-"青龙服务启动通知" \
-"青龙面板成功启动"
-
-
-
-else
-
-
-echo "没有通知配置"
-
 
 
 fi
@@ -357,11 +350,12 @@ mkdir -p \
 
 
 cat > "$CODE_HOME/.config/code-server/config.yaml" <<EOF
+
 bind-addr: 0.0.0.0:10001
 auth: none
 disable-telemetry: true
-EOF
 
+EOF
 
 
 
@@ -370,12 +364,8 @@ echo "启动 code-server"
 
 
 
-unset PORT
-
-
-nohup code-server \
+code-server \
 --config "$CODE_HOME/.config/code-server/config.yaml" \
---bind-addr 0.0.0.0:10001 \
 >/tmp/code-server.log 2>&1 &
 
 
@@ -389,10 +379,6 @@ sleep 5
 
 
 
-echo "########## code-server日志 ##########"
-
-
-
 cat /tmp/code-server.log || true
 
 
@@ -401,17 +387,14 @@ cat /tmp/code-server.log || true
 
 
 ################################################
-# 端口检查
+# 状态
 ################################################
-
 
 
 echo "########## 端口检测 ##########"
 
 
-
 ss -lntp | grep -E "5700|10000|10001" || true
-
 
 
 
@@ -421,14 +404,6 @@ echo "青龙主程序运行完成"
 
 echo "================================"
 
-
-
-
-
-# 后台保存日志，不阻塞Render
-
-pm2 logs \
->/ql/data/pm2.log 2>&1 &
 
 
 
