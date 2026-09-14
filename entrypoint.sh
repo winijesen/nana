@@ -1,7 +1,6 @@
 #!/bin/bash
 
-echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN 🔥🔥🔥"
-
+echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-FIX 🔥🔥🔥"
 
 set -e
 
@@ -20,19 +19,18 @@ else
 fi
 
 
-
 ################################################
-# HOME 兼容
+# HOME
 ################################################
 
-USER_HOME=${HOME:-/home/coder}
+USER_HOME="${HOME}"
 
 echo "HOME=$USER_HOME"
 
 
 
 ################################################
-# rclone 配置
+# rclone
 ################################################
 
 echo "======================写入 rclone 配置========================"
@@ -45,9 +43,7 @@ if [ -n "$RCLONE_CONF" ]; then
     echo "$RCLONE_CONF" \
     > "$USER_HOME/.config/rclone/rclone.conf"
 
-
     chmod 600 "$USER_HOME/.config/rclone/rclone.conf"
-
 
     echo "✔ rclone 配置完成"
 
@@ -125,17 +121,14 @@ fi
 
 
 ################################################
-# 修改青龙端口
+# 修改青龙 PORT
 ################################################
 
-
 if [ -f "$QL_DIR/.env" ] && [ -n "$PORT" ]; then
-
 
     sed -i \
     "s/^PORT=.*/PORT=$PORT/" \
     "$QL_DIR/.env"
-
 
     echo "✔ 青龙 PORT 修改完成"
 
@@ -147,11 +140,7 @@ fi
 # PM2
 ################################################
 
-
 log_with_style INFO "启动 PM2"
-
-
-pm2 ls >/dev/null 2>&1 || true
 
 
 reload_pm2
@@ -162,16 +151,12 @@ reload_pm2
 # bot
 ################################################
 
-
 if [[ "$AutoStartBot" == "true" ]]; then
-
 
     log_with_style INFO "启动 bot"
 
-
     nohup ql bot \
     > "$dir_log/bot.log" 2>&1 &
-
 
 fi
 
@@ -181,25 +166,20 @@ fi
 # extra
 ################################################
 
-
 if [[ "$EnableExtraShell" == "true" ]]; then
-
 
     log_with_style INFO "执行 extra"
 
-
     nohup ql extra \
     > "$dir_log/extra.log" 2>&1 &
-
 
 fi
 
 
 
 ################################################
-# 等待青龙启动
+# 等待青龙
 ################################################
-
 
 echo "等待青龙服务启动..."
 
@@ -228,7 +208,6 @@ done
 ################################################
 # nginx
 ################################################
-
 
 echo "======================启动 nginx========================"
 
@@ -279,7 +258,7 @@ fi
 
 
 ################################################
-# 初始化管理员
+# 管理员初始化
 ################################################
 
 
@@ -294,18 +273,14 @@ then
 echo "########## 初始化管理员 ##########"
 
 
-
 API=$(curl -s \
 "http://127.0.0.1:5700/api/user/init?t=$(date +%s)" \
 -X PUT \
 -H "Content-Type: application/json;charset=UTF-8" \
---data "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_PASSWORD\"}"
-)
-
+--data "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_PASSWORD\"}")
 
 
 CODE=$(echo "$API" | jq -r .code)
-
 
 
 if [ "$CODE" = "200" ]
@@ -326,9 +301,8 @@ fi
 
 
 ################################################
-# rclone 恢复
+# rclone恢复
 ################################################
-
 
 if [ -n "$RCLONE_CONF" ]; then
 
@@ -350,11 +324,9 @@ then
     if [ "$COUNT" -gt 0 ]
     then
 
-
         rclone sync \
         "$REMOTE_FOLDER" \
         "$QL_DIR/.tmp/data"
-
 
 
         real_time=true ql reload data
@@ -385,30 +357,24 @@ fi
 # notify
 ################################################
 
-
 if [ -n "$NOTIFY_CONFIG" ]; then
 
 
 echo "########## 通知 ##########"
 
 
-
 python /notify.py || true
-
 
 
 sleep 10
 
 
-
 source "$QL_DIR/shell/api.sh"
-
 
 
 notify_api \
 "青龙服务启动通知" \
 "青龙面板成功启动"
-
 
 
 else
@@ -422,48 +388,73 @@ fi
 
 
 ################################################
-# code-server
+# code-server 修复版
 ################################################
-
 
 
 echo "########## 启动 code-server ##########"
 
 
+CODE_HOME="${HOME}"
 
-CODE_HOME=${HOME:-/home/coder}
+
+echo "CODE_HOME=$CODE_HOME"
 
 
 
 mkdir -p \
-"$CODE_HOME/.config/code-server"
+"$CODE_HOME/.config/code-server" \
+"$CODE_HOME/.local/share/code-server"
 
 
 
 cat > "$CODE_HOME/.config/code-server/config.yaml" <<EOF
 bind-addr: 0.0.0.0:10001
 auth: none
+cert: false
 EOF
 
 
 
-code-server \
+echo "启动 code-server..."
+
+
+
+nohup code-server \
 --config "$CODE_HOME/.config/code-server/config.yaml" \
+--user-data-dir "$CODE_HOME/.local/share/code-server" \
 >/tmp/code-server.log 2>&1 &
 
 
 
-sleep 3
+sleep 5
 
 
 
-echo "code-server:"
+echo "===== code-server LOG ====="
+
 cat /tmp/code-server.log || true
 
 
 
+echo "===== 检查10001端口 ====="
+
+
+if ss -tlnp | grep -q 10001
+then
+
+    echo "✔ code-server 监听10001成功"
+
+else
+
+    echo "❌ code-server 未监听10001"
+
+fi
+
+
+
 ################################################
-# 保持 PM2 日志
+# PM2日志
 ################################################
 
 
