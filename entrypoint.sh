@@ -1,17 +1,17 @@
 #!/bin/bash
 
-echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FIX-V2 🔥🔥🔥"
+echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FINAL 🔥🔥🔥"
 
 
 set -e
 
 
+export PATH="$HOME/bin:$PATH"
+
+
 ################################################
 # 基础变量
 ################################################
-
-export PATH="$HOME/bin:$PATH"
-
 
 QL_DIR=${QL_DIR:-/ql}
 
@@ -41,23 +41,31 @@ fi
 
 if [ -f "$dir_shell/env.sh" ]; then
 
+
     load_ql_envs || true
+
 
     export BACK_PORT="${ql_port}"
     export GRPC_PORT="${ql_grpc_port}"
 
+
     . "$dir_shell/env.sh"
+
 
     import_config "$@" || true
 
+
     fix_config || true
+
 
 fi
 
 
 
+
+
 ################################################
-# rclone
+# rclone配置
 ################################################
 
 
@@ -76,7 +84,9 @@ if [ -n "$RCLONE_CONF" ]; then
     > "$HOME/.config/rclone/rclone.conf"
 
 
+
     chmod 600 "$HOME/.config/rclone/rclone.conf"
+
 
 
     echo "✔ rclone 配置完成"
@@ -93,19 +103,21 @@ fi
 
 
 
+
 ################################################
 # Render PORT
 ################################################
 
 
 echo
+
 echo "Render PORT=$PORT"
 
 
 
 if [ -z "$PORT" ]; then
 
-    echo "❌ PORT为空"
+    echo "❌ Render PORT不存在"
 
     exit 1
 
@@ -113,8 +125,10 @@ fi
 
 
 
+
+
 ################################################
-# 修改青龙端口
+# 固定青龙端口
 ################################################
 
 
@@ -126,7 +140,9 @@ if [ -f "$QL_DIR/.env" ]; then
     "$QL_DIR/.env"
 
 
+
     echo "✔ 青龙固定端口5700"
+
 
 
 fi
@@ -134,8 +150,9 @@ fi
 
 
 
+
 ################################################
-# 启动 PM2
+# 启动PM2
 ################################################
 
 
@@ -146,6 +163,8 @@ echo "[INFO] 启动 PM2"
 
 
 reload_pm2
+
+
 
 
 
@@ -160,6 +179,7 @@ echo "等待青龙启动..."
 
 for i in {1..40}
 do
+
 
     if curl -sf \
     http://127.0.0.1:5700/api/health \
@@ -178,6 +198,7 @@ do
 
 
 done
+
 
 
 
@@ -212,7 +233,9 @@ if [ -f /etc/nginx/conf.d/front.conf ]; then
     echo "✔ nginx PORT替换完成"
 
 
+
 fi
+
 
 
 
@@ -225,6 +248,8 @@ nginx -s reload 2>/dev/null || nginx
 
 
 echo "✔ nginx启动完成"
+
+
 
 
 
@@ -266,13 +291,13 @@ fi
 
 
 
+
 ################################################
-# rclone恢复数据
+# rclone恢复
 ################################################
 
 
 if [ -n "$RCLONE_CONF" ]; then
-
 
 
 echo
@@ -286,6 +311,7 @@ if rclone ls "$REMOTE_FOLDER" >/dev/null 2>&1
 then
 
 
+
 mkdir -p "$QL_DIR/.tmp/data"
 
 
@@ -297,6 +323,7 @@ COUNT=$(rclone ls "$REMOTE_FOLDER" | wc -l)
 if [ "$COUNT" -gt 0 ]
 
 then
+
 
 
 rclone sync \
@@ -323,10 +350,11 @@ echo "首次安装，没有备份"
 fi
 
 
+
 else
 
 
-echo "⚠️ rclone remote失败"
+echo "⚠️ rclone连接失败"
 
 
 
@@ -335,6 +363,7 @@ fi
 
 
 fi
+
 
 
 
@@ -346,7 +375,6 @@ fi
 
 
 if [ -n "$NOTIFY_CONFIG" ]; then
-
 
 
 echo
@@ -386,6 +414,8 @@ fi
 
 
 
+
+
 ################################################
 # code-server
 ################################################
@@ -401,19 +431,35 @@ CODE_HOME="$HOME"
 
 
 
+echo "CODE_HOME=$CODE_HOME"
+
+
+
 mkdir -p \
 "$CODE_HOME/.config/code-server" \
 "$CODE_HOME/.local/share/code-server"
 
 
 
-# 删除旧配置
+
+# 删除旧配置，避免10000冲突
+
 rm -f \
 "$CODE_HOME/.config/code-server/config.yaml"
 
 
 
-echo "CODE_HOME=$CODE_HOME"
+
+# 创建正确配置
+
+cat > "$CODE_HOME/.config/code-server/config.yaml" <<EOF
+bind-addr: 0.0.0.0:10001
+auth: none
+disable-telemetry: true
+EOF
+
+
+
 
 
 echo "code-server路径:"
@@ -429,15 +475,13 @@ code-server --version || true
 
 
 
+
 echo "启动 code-server"
 
 
 
 nohup /usr/bin/code-server \
---config /dev/null \
---bind-addr 0.0.0.0:10001 \
---auth none \
---disable-telemetry \
+--config "$CODE_HOME/.config/code-server/config.yaml" \
 --user-data-dir "$CODE_HOME/.local/share/code-server" \
 >/tmp/code-server.log 2>&1 &
 
@@ -451,7 +495,10 @@ echo "code-server PID=$CODE_PID"
 
 
 
-sleep 5
+sleep 8
+
+
+
 
 
 
@@ -460,8 +507,21 @@ echo
 echo "########## code-server日志 ##########"
 
 
-
 cat /tmp/code-server.log || true
+
+
+
+
+
+echo
+
+echo "########## code-server进程 ##########"
+
+
+ps aux | grep code-server | grep -v grep || true
+
+
+
 
 
 
@@ -471,7 +531,9 @@ echo "########## 端口检测 ##########"
 
 
 
-(ss -tlnp 2>/dev/null || true) | grep -E "5700|10001|$PORT" || true
+(ss -tlnp 2>/dev/null || true) \
+| grep -E "5700|10001|$PORT" || true
+
 
 
 
