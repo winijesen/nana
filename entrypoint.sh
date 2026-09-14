@@ -1,63 +1,37 @@
 #!/bin/bash
 
-echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-FIX 🔥🔥🔥"
+echo "🔥🔥🔥 ENTRYPOINT VERSION: 2026-09-15-QINGLONG-2.21.0-DEBIAN-RENDER-FIX 🔥🔥🔥"
 
 set -e
 
 
+################################################
+# 基础环境
+################################################
+
 export PATH="$HOME/bin:$PATH"
 
-
 QL_DIR=${QL_DIR:-/ql}
-dir_shell=${QL_DIR}/shell
 
+dir_shell="${QL_DIR}/shell"
+
+
+echo "HOME=$HOME"
+echo "USER=$(whoami)"
+
+
+
+################################################
+# 加载青龙环境
+################################################
 
 if [ -f "$dir_shell/share.sh" ]; then
     . "$dir_shell/share.sh"
 else
-    echo "⚠️ 未找到 share.sh"
+    echo "⚠️ share.sh不存在"
 fi
 
 
-################################################
-# HOME
-################################################
-
-USER_HOME="${HOME}"
-
-echo "HOME=$USER_HOME"
-
-
-
-################################################
-# rclone
-################################################
-
-echo "======================写入 rclone 配置========================"
-
-
-if [ -n "$RCLONE_CONF" ]; then
-
-    mkdir -p "$USER_HOME/.config/rclone"
-
-    echo "$RCLONE_CONF" \
-    > "$USER_HOME/.config/rclone/rclone.conf"
-
-    chmod 600 "$USER_HOME/.config/rclone/rclone.conf"
-
-    echo "✔ rclone 配置完成"
-
-else
-
-    echo "没有检测到 RCLONE_CONF"
-
-fi
-
-
-
-################################################
-# 环境加载
-################################################
 
 export_ql_envs()
 {
@@ -67,22 +41,15 @@ export_ql_envs()
 
 
 
-log_with_style()
+log()
 {
-    local level="$1"
-    local message="$2"
-
-    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-
-    printf "\n[%s] [%7s] %s\n" \
-    "$timestamp" \
-    "$level" \
-    "$message"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$1] $2"
 }
 
 
 
-log_with_style INFO "🚀 加载青龙环境"
+log INFO "加载青龙环境"
+
 
 
 if [ -f "$dir_shell/env.sh" ]; then
@@ -102,45 +69,66 @@ fi
 
 
 ################################################
+# rclone 配置
+################################################
+
+echo "======================写入 rclone 配置========================"
+
+
+if [ -n "$RCLONE_CONF" ]; then
+
+
+    mkdir -p "$HOME/.config/rclone"
+
+
+    echo "$RCLONE_CONF" \
+    > "$HOME/.config/rclone/rclone.conf"
+
+
+    chmod 600 "$HOME/.config/rclone/rclone.conf"
+
+
+    echo "✔ rclone 配置完成"
+
+
+else
+
+    echo "没有检测到 RCLONE_CONF"
+
+fi
+
+
+
+################################################
 # Render PORT
 ################################################
 
 echo "Render PORT=$PORT"
 
 
-if [ -z "$PORT" ]; then
 
-    echo "⚠️ PORT为空"
+if [ -n "$PORT" ] && [ -f "$QL_DIR/.env" ]; then
 
-else
-
-    echo "✔ PORT=$PORT"
-
-fi
-
-
-
-################################################
-# 修改青龙 PORT
-################################################
-
-if [ -f "$QL_DIR/.env" ] && [ -n "$PORT" ]; then
 
     sed -i \
     "s/^PORT=.*/PORT=$PORT/" \
     "$QL_DIR/.env"
 
+
     echo "✔ 青龙 PORT 修改完成"
+
 
 fi
 
 
 
+
 ################################################
-# PM2
+# 启动 PM2 青龙
 ################################################
 
-log_with_style INFO "启动 PM2"
+
+log INFO "启动 PM2"
 
 
 reload_pm2
@@ -151,12 +139,16 @@ reload_pm2
 # bot
 ################################################
 
+
 if [[ "$AutoStartBot" == "true" ]]; then
 
-    log_with_style INFO "启动 bot"
+
+    echo "启动 bot"
+
 
     nohup ql bot \
     > "$dir_log/bot.log" 2>&1 &
+
 
 fi
 
@@ -166,12 +158,16 @@ fi
 # extra
 ################################################
 
+
 if [[ "$EnableExtraShell" == "true" ]]; then
 
-    log_with_style INFO "执行 extra"
+
+    echo "启动 extra"
+
 
     nohup ql extra \
     > "$dir_log/extra.log" 2>&1 &
+
 
 fi
 
@@ -181,15 +177,18 @@ fi
 # 等待青龙
 ################################################
 
+
 echo "等待青龙服务启动..."
 
 
 for i in {1..30}
 do
 
+
     if curl -sf \
     http://127.0.0.1:5700/api/health \
     >/dev/null 2>&1
+
     then
 
         echo "✔ 青龙启动完成"
@@ -201,13 +200,16 @@ do
 
     sleep 2
 
+
 done
+
 
 
 
 ################################################
 # nginx
 ################################################
+
 
 echo "======================启动 nginx========================"
 
@@ -221,11 +223,10 @@ if command -v envsubst >/dev/null 2>&1; then
 
         envsubst '$PORT' \
         < /etc/nginx/conf.d/front.conf \
-        > /etc/nginx/conf.d/front_render.conf
+        > /tmp/front.conf
 
 
-        mv \
-        /etc/nginx/conf.d/front_render.conf \
+        mv /tmp/front.conf \
         /etc/nginx/conf.d/front.conf
 
 
@@ -243,13 +244,14 @@ nginx -t
 
 
 if nginx -s reload 2>/dev/null
+
 then
 
     echo "✔ nginx reload"
 
 else
 
-    nginx -c /etc/nginx/nginx.conf
+    nginx
 
     echo "✔ nginx start"
 
@@ -257,20 +259,24 @@ fi
 
 
 
+
 ################################################
-# 管理员初始化
+# 初始化管理员
 ################################################
 
 
 sleep 5
 
 
+
 if [ -n "$ADMIN_USERNAME" ] && \
    [ -n "$ADMIN_PASSWORD" ]
+
 then
 
 
 echo "########## 初始化管理员 ##########"
+
 
 
 API=$(curl -s \
@@ -280,17 +286,19 @@ API=$(curl -s \
 --data "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_PASSWORD\"}")
 
 
+
 CODE=$(echo "$API" | jq -r .code)
 
 
+
 if [ "$CODE" = "200" ]
+
 then
 
     echo "✔ 管理员初始化成功"
 
 else
 
-    echo "⚠️ 管理员初始化返回:"
     echo "$API"
 
 fi
@@ -300,18 +308,21 @@ fi
 
 
 
+
 ################################################
-# rclone恢复
+# rclone 恢复
 ################################################
+
 
 if [ -n "$RCLONE_CONF" ]; then
 
 
-echo "########## rclone 恢复 ##########"
+echo "########## rclone恢复 ##########"
 
 
 
 if rclone ls "$REMOTE_FOLDER" >/dev/null 2>&1
+
 then
 
 
@@ -321,12 +332,16 @@ then
     COUNT=$(rclone ls "$REMOTE_FOLDER" | wc -l)
 
 
+
     if [ "$COUNT" -gt 0 ]
+
     then
+
 
         rclone sync \
         "$REMOTE_FOLDER" \
         "$QL_DIR/.tmp/data"
+
 
 
         real_time=true ql reload data
@@ -339,23 +354,27 @@ then
 
         echo "首次安装，无备份"
 
+
     fi
 
 
 else
 
-    echo "⚠️ rclone remote 不可用"
-
-fi
+    echo "⚠ rclone remote不可用"
 
 
 fi
+
+
+fi
+
 
 
 
 ################################################
 # notify
 ################################################
+
 
 if [ -n "$NOTIFY_CONFIG" ]; then
 
@@ -379,23 +398,23 @@ notify_api \
 
 else
 
-
 echo "没有通知配置"
-
 
 fi
 
 
 
+
 ################################################
-# code-server 修复版
+# code-server
 ################################################
 
 
 echo "########## 启动 code-server ##########"
 
 
-CODE_HOME="${HOME}"
+
+CODE_HOME="$HOME"
 
 
 echo "CODE_HOME=$CODE_HOME"
@@ -408,57 +427,78 @@ mkdir -p \
 
 
 
-cat > "$CODE_HOME/.config/code-server/config.yaml" <<EOF
-bind-addr: 0.0.0.0:10001
-auth: none
-cert: false
-EOF
+echo "code-server路径:"
+
+
+which code-server || true
 
 
 
-echo "启动 code-server..."
+echo "code-server版本:"
+
+
+code-server --version || true
 
 
 
-nohup code-server \
---config "$CODE_HOME/.config/code-server/config.yaml" \
+
+echo "启动 code-server"
+
+
+
+nohup /usr/bin/code-server \
+--bind-addr 0.0.0.0:10001 \
+--auth none \
+--disable-telemetry \
 --user-data-dir "$CODE_HOME/.local/share/code-server" \
 >/tmp/code-server.log 2>&1 &
 
 
 
-sleep 5
+CODE_PID=$!
 
 
 
-echo "===== code-server LOG ====="
+echo "code-server PID=$CODE_PID"
+
+
+
+sleep 8
+
+
+
+echo "########## code-server日志 ##########"
+
+
 
 cat /tmp/code-server.log || true
 
 
 
-echo "===== 检查10001端口 ====="
+echo "########## code-server进程 ##########"
 
 
-if ss -tlnp | grep -q 10001
-then
 
-    echo "✔ code-server 监听10001成功"
+ps aux | grep code-server | grep -v grep || true
 
-else
 
-    echo "❌ code-server 未监听10001"
 
-fi
+echo "########## 端口检测 ##########"
+
+
+
+(ss -tlnp 2>/dev/null || netstat -tlnp 2>/dev/null || true) | grep 10001 || true
+
 
 
 
 ################################################
-# PM2日志
+# 保活
 ################################################
 
 
-echo "青龙启动完成"
+echo "青龙主程序运行完成"
+
 
 
 pm2 logs \
@@ -466,4 +506,4 @@ pm2 logs \
 
 
 
-wait
+tail -f /ql/data/pm2.log
