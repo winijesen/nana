@@ -44,7 +44,7 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ steps.lower-repo.outputs.repository }}/ceohellodw:latest
+            ghcr.io/${{ steps.lower-repo.outputs.repository }}/dwlove:latest
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=QingLong Docker Image
