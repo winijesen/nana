@@ -1,32 +1,103 @@
-FROM whyour/qinglong:latest
+FROM ghcr.io/whyour/qinglong:2.21.0-debian
 
-# 安装必要依赖（Alpine 环境）
-RUN apk update && apk add --no-cache \
-    bash \
+
+LABEL maintainer="whyour"
+
+
+USER root
+
+
+# =====================================
+# 安装扩展组件
+# nginx
+# rclone
+# gettext-base(envsubst)
+# =====================================
+
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y \
+    nginx \
+    rclone \
+    gettext-base \
+    jq \
     curl \
     wget \
-    nginx \
-    libc6-compat \
-    ca-certificates \
-    coreutils \
-    unzip
+    git \
+    openssh-client \
+    tzdata \
+    procps \
+    unzip \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# 安装 code-server（使用官方 tar.gz，适配 Linux x86_64）
-RUN wget https://github.com/coder/code-server/releases/download/v4.89.1/code-server-4.89.1-linux-amd64.tar.gz \
-    && tar -xzf code-server-4.89.1-linux-amd64.tar.gz \
-    && mv code-server-4.89.1-linux-amd64 /usr/lib/code-server \
-    && ln -s /usr/lib/code-server/bin/code-server /usr/bin/code-server \
-    && rm code-server-4.89.1-linux-amd64.tar.gz
 
-# 安装 rclone（官方安装脚本，兼容 Alpine）
-RUN curl https://rclone.org/install.sh | bash
 
-# 拷贝 nginx 配置
-COPY nginx.conf /etc/nginx/nginx.conf
+# =====================================
+# 安装 code-server
+# =====================================
+
+RUN curl -fsSL https://code-server.dev/install.sh | \
+    sh -s -- --version=4.96.4
+
+
+
+# =====================================
+# nginx 配置
+# =====================================
+
+RUN rm -f /etc/nginx/conf.d/default.conf && \
+    rm -f /etc/nginx/sites-enabled/default
+
+
 COPY front.conf /etc/nginx/conf.d/front.conf
 
-# 拷贝入口脚本
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+# =====================================
+# 通知脚本
+# =====================================
+
+COPY notify.py /notify.py
+
+RUN chmod 755 /notify.py
+
+
+
+# =====================================
+# 自定义启动脚本
+# =====================================
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+
+
+# =====================================
+# 时区
+# =====================================
+
+RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo "Asia/Shanghai" >/etc/timezone
+
+
+
+WORKDIR /ql
+
+
+
+# 保持 root 启动
+# nginx 需要权限
+# 青龙内部 PM2 自己管理
+USER root
+
+
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
+
+
+EXPOSE 80
+
+
+VOLUME ["/ql/data"]
